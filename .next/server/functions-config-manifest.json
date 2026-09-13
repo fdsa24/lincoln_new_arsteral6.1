@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "functions": {
+    "/api/sessions": {},
+    "/api/sessions/[id]": {},
+    "/api/sessions/[id]/messages": {
+      "maxDuration": 90
+    }
+  }
+}
