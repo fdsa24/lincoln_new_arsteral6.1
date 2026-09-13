@@ -19,7 +19,7 @@ test('연습 모드 질문·새로고침·시점 이동·삭제', async ({ page 
 test('다른 브라우저 소유자의 대화는 API로도 조회 불가', async ({ page, browser }) => {
   await page.goto('/'); await expect(page.getByLabel('링컨에게 질문하기')).toBeVisible();
   const first = await page.request.get('/api/sessions'); const {sessions} = await first.json();
-  const other = await browser.newContext(); const secondPage=await other.newPage();
+  const other = await browser.newContext({ baseURL: "http://127.0.0.1:3000" }); const secondPage=await other.newPage();
   await secondPage.goto('/'); await expect(secondPage.getByLabel('링컨에게 질문하기')).toBeVisible();
   const denied=await other.request.get(`/api/sessions/${sessions[0].id}`); expect(denied.status()).toBe(404);
   await other.close();
