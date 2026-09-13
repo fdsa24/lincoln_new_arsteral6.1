@@ -5,10 +5,17 @@ import { AppError, messageFor } from '../errors';
 import { appOrigin, getLiveConfig, getMode } from './config';
 const COOKIE = 'lincoln_owner_v5';
 export function guard(request: NextRequest) {
-  if (!['GET', 'HEAD'].includes(request.method)) {
+if (!['GET', 'HEAD'].includes(request.method)) {
     const origin = request.headers.get('origin');
     const allowed = new Set([appOrigin()]);
+    
     if (process.env.NODE_ENV !== 'production' && !process.env.APP_ORIGIN && !process.env.CODESPACE_NAME) allowed.add('http://127.0.0.1:3000');
+
+    // [구조적 해결 추가] Codespaces 환경인 경우, github.dev 도메인에서 오는 요청을 동적으로 허용
+    if (process.env.CODESPACE_NAME && origin && origin.endsWith('.github.dev')) {
+      allowed.add(origin);
+    }
+
     if (!origin || !allowed.has(origin) || request.headers.get('sec-fetch-site') === 'cross-site') throw new AppError('ORIGIN_DENIED', 403);
   }
   if (getMode() === 'live') {
