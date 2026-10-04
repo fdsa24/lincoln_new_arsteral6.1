@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 4, "column": 0}, "map": {"version":3,"sources":["file:///workspaces/lincoln_new_arsteral6.1/node_modules/next/src/server/route-modules/app-page/vendored/rsc/react-jsx-dev-runtime.ts"],"sourcesContent":["module.exports = (\n  require('../../module.compiled') as typeof import('../../module.compiled')\n).vendored['react-rsc']!.ReactJsxDevRuntime\n"],"names":["module","exports","require","vendored","ReactJsxDevRuntime"],"mappings":"AAAAA,OAAOC,OAAO,GACZC,QAAQ,4HACRC,QAAQ,CAAC,YAAY,CAAEC,kBAAkB","ignoreList":[0]}},
-    {"offset": {"line": 9, "column": 0}, "map": {"version":3,"sources":["file:///workspaces/lincoln_new_arsteral6.1/src/app/layout.tsx"],"sourcesContent":["import type { Metadata } from 'next';\nimport './globals.css';\nexport const metadata: Metadata = { title: 'Lincoln History Lab', description: '링컨의 시대와 사료를 구별해 탐구하는 역사 시뮬레이션', robots: { index: false, follow: false } };\nexport default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {\nreturn <html lang=\"ko\" suppressHydrationWarning><body>{children}</body></html>;\n}\n"],"names":["metadata","title","description","robots","index","follow","RootLayout","children","lang","suppressHydrationWarning"],"mappings":";;;;;;;;;AAEO,MAAMA,WAAqB;IAAEC,OAAO;IAAuBC,aAAa;IAAiCC,QAAQ;QAAEC,OAAO;QAAOC,QAAQ;IAAM;AAAE;AACzI,SAASC,WAAW,EAAEC,QAAQ,EAA2C;IACxF,qBAAO,8OAAC;QAAKC,MAAK;QAAKC,wBAAwB;kBAAC,cAAA,8OAAC;sBAAMF;;;;;;;;;;;AACvD"}}]
-}

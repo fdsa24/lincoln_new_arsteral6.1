@@ -1,8 +1,0 @@
-{
-  "/_global-error/page": "/_global-error",
-  "/_not-found/page": "/_not-found",
-  "/api/sessions/[id]/messages/route": "/api/sessions/[id]/messages",
-  "/api/sessions/[id]/route": "/api/sessions/[id]",
-  "/api/sessions/route": "/api/sessions",
-  "/page": "/"
-}
