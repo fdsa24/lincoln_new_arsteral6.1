@@ -124,3 +124,5 @@ CSP에는 Next.js 인라인 스크립트 때문에 `unsafe-inline`이 포함되�
 2. https://github.com/codespaces → 해당 작업실의 `…` → **Stop codespace**.
 3. 탭을 닫기만 했다고 즉시 정지되지는 않습니다. 정지 중에도 저장 공간 사용량은 남습니다.
 4. 요금·무료 사용량은 계정의 Billing/사용량 화면에서 확인하세요.
+
+AI 연결 테스트
