@@ -1,6 +1,6 @@
 {
   "name": "Lincoln History Lab - Node.js 24",
-  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-24-bookworm",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:24-bookworm",
   "remoteUser": "node",
   "containerEnv": {
     "NEXT_TELEMETRY_DISABLED": "1"
