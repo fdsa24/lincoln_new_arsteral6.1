@@ -1,11 +1,15 @@
 import 'server-only';
-import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { AppError, messageFor } from '../errors';
 import { appOrigin, getLiveConfig, getMode } from './config';
+import { checkAccess } from './guard';
 const COOKIE = 'lincoln_owner_v5';
-export function guard(request: NextRequest) {
-  return; // (모든 검사를 무시하고 즉시 통과시킴)
+export function guard(request: NextRequest): void {
+  const mode = getMode();
+  checkAccess(request, mode === 'live'
+    ? { mode, origin: appOrigin(), classroomCode: getLiveConfig().classroomCode }
+    : { mode });
 }
 export function identity(request: NextRequest, allowCreate = false): { owner: string; cookie?: string } {
   const token = request.cookies.get(COOKIE)?.value;

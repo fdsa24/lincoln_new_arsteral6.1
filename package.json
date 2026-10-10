@@ -11,7 +11,7 @@
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test tests/core.test.ts tests/memory.test.ts tests/provider.test.ts",
+    "test": "node --import tsx --test tests/core.test.ts tests/memory.test.ts tests/provider.test.ts tests/guard.test.ts",
     "test:db": "node --env-file-if-exists=.env.local --import tsx --test tests/postgres.test.ts",
     "test:e2e": "playwright test",
     "check": "npm run lint && npm run typecheck && npm test && npm run build",
