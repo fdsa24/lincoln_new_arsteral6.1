@@ -1,0 +1,4 @@
+# Keep configuration files compatible with the existing setup script on all OSes.
+* text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf

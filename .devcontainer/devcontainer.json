@@ -1,0 +1,19 @@
+{
+  "name": "Lincoln History Lab - Node.js 24",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:24-bookworm",
+  "remoteUser": "node",
+  "containerEnv": {
+    "NEXT_TELEMETRY_DISABLED": "1"
+  },
+  "postCreateCommand": "npm install --no-audit --no-fund && npm run setup",
+  "forwardPorts": [
+    3000
+  ],
+  "portsAttributes": {
+    "3000": {
+      "label": "Lincoln development server",
+      "protocol": "http",
+      "onAutoForward": "notify"
+    }
+  }
+}

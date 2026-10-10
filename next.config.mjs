@@ -8,7 +8,7 @@ const csp = [
   `script-src 'self' 'unsafe-inline'${dev ? " 'unsafe-eval'" : ''}`,
   "style-src 'self' 'unsafe-inline'", `connect-src 'self'${dev ? ' ws: wss:' : ''}`,
 ].join('; ');
-export default {
+const nextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
   images: { unoptimized: true },
@@ -23,3 +23,5 @@ export default {
     ] }];
   },
 };
+
+export default nextConfig;

@@ -1,0 +1,163 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+  APP_MODE: demo
+  APP_ORIGIN: http://127.0.0.1:3000
+  GEMINI_API_KEY: ""
+  DATABASE_URL: ""
+
+jobs:
+  quality:
+    name: Quality (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      # NOTE: main's package-lock.json is out of sync with package.json, so
+      # `npm ci` fails on a clean machine. `npm install` tolerates the drift.
+      - name: Install dependencies (lock file drift tolerated)
+        id: install
+        run: npm install --no-audit --no-fund
+      - name: Report lock file drift (diagnostic only)
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: git diff --stat -- package-lock.json || true
+      - name: Initialize demo configuration
+        id: setup
+        run: npm run setup
+      - name: Verify Node version and setup idempotence
+        run: >-
+          node --input-type=module -e "import assert from 'node:assert/strict';
+          import {readFileSync} from 'node:fs'; import {execFileSync} from 'node:child_process';
+          assert.equal(process.versions.node.split('.')[0], '24');
+          const before = readFileSync('.env.local', 'utf8');
+          assert.match(before, /^CLASSROOM_CODE=[a-f0-9]{48}$/m);
+          assert.match(before, /^APP_MODE=demo$/m);
+          execFileSync(process.execPath, ['scripts/setup.mjs']);
+          assert.equal(readFileSync('.env.local', 'utf8'), before);"
+      - name: Lint
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.setup.outcome == 'success' }}
+        run: npm run lint
+      - name: Type check
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.setup.outcome == 'success' }}
+        run: npm run typecheck
+      - name: Unit tests
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.setup.outcome == 'success' }}
+        run: npm test
+      - name: Production build
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.setup.outcome == 'success' }}
+        run: npm run build
+
+  browser:
+    name: Chromium functional tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - run: npm run setup
+      - run: npm run build
+      - name: Install Chromium
+        run: npx --no-install playwright install --with-deps chromium
+      - name: Run existing browser scenarios
+        run: npm run test:e2e
+      - name: Upload browser diagnostics
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  database:
+    name: Isolated PostgreSQL integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: lincoln_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d lincoln_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      # Disposable CI database only. The existing test refuses non-_test names.
+      TEST_DATABASE_URL: postgresql://postgres:ci-only-password@127.0.0.1:5432/lincoln_test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - run: npm run setup
+      - name: Verify test database is configured
+        run: node -e "if (!process.env.TEST_DATABASE_URL?.endsWith('/lincoln_test')) process.exit(1)"
+      - name: Run existing database integration test (not skipped)
+        run: npm run test:db
+
+  devcontainer:
+    name: Development container
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Install development container CLI
+        run: npm install --global @devcontainers/cli
+      - name: Create container and run postCreateCommand
+        run: devcontainer up --workspace-folder .
+      - name: Verify container runtime and initial configuration
+        run: >-
+          devcontainer exec --workspace-folder . node --input-type=module -e
+          "import assert from 'node:assert/strict'; import {readFileSync} from 'node:fs';
+          assert.equal(process.versions.node.split('.')[0], '24');
+          assert.match(readFileSync('.env.local', 'utf8'), /^CLASSROOM_CODE=[a-f0-9]{48}$/m);"
+      - name: Run checks inside the container
+        run: devcontainer exec --workspace-folder . env APP_MODE=demo APP_ORIGIN=http://127.0.0.1:3000 npm run check
