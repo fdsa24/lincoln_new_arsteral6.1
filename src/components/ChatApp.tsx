@@ -87,8 +87,9 @@ export default function ChatApp({ mode }: { mode: Mode }) {
     finally { finish(c); }
   }, [begin, finish]);
   useEffect(() => {
-    if (mode === 'demo') void initialize('');
-    return () => { active.current?.abort(); active.current = null; };
+    // Deferred so initialize() does not set state synchronously inside the effect body.
+    const timer = mode === 'demo' ? setTimeout(() => { void initialize(''); }, 0) : undefined;
+    return () => { if (timer) clearTimeout(timer); active.current?.abort(); active.current = null; };
   }, [mode, initialize]);
   useEffect(() => { bottom.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [view?.turns.length, busy]);
   useEffect(() => {
