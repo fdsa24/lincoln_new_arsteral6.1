@@ -12,7 +12,7 @@ const nextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
   images: { unoptimized: true },
-  ...(codespaceHost ? { allowedDevOrigins: [codespaceHost] } : {}),
+  allowedDevOrigins: ['*.app.github.dev', '*.github.dev', 'localhost', '127.0.0.1', ...(codespaceHost ? [codespaceHost] : [])],
   async headers() {
     return [{ source: '/:path*', headers: [
       { key: 'X-Content-Type-Options', value: 'nosniff' },

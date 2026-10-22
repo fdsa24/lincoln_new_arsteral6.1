@@ -4,23 +4,60 @@ import { NextRequest, NextResponse } from 'next/server';
 import { AppError, messageFor } from '../errors';
 import { appOrigin, getLiveConfig, getMode } from './config';
 const COOKIE = 'lincoln_owner_v5';
+function isAllowedOrigin(request: NextRequest): boolean {
+  const origin = request.headers.get('origin')?.trim().toLowerCase();
+  const secFetchSite = request.headers.get('sec-fetch-site')?.trim().toLowerCase();
+
+  if (process.env.NODE_ENV === 'production' && getMode() === 'live' && process.env.APP_ORIGIN) {
+    return !!origin && origin === appOrigin().toLowerCase() && secFetchSite !== 'cross-site';
+  }
+
+  if (secFetchSite === 'same-origin') return true;
+  if (!origin) return false;
+
+  const allowed = new Set<string>([
+    appOrigin().toLowerCase(),
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+  ]);
+
+  if (process.env.CODESPACE_NAME) {
+    const cs = process.env.CODESPACE_NAME.toLowerCase();
+    const domain = (process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN || 'app.github.dev').toLowerCase();
+    allowed.add(`https://${cs}-3000.${domain}`);
+    allowed.add(`https://${cs}-3000.app.github.dev`);
+    allowed.add(`https://${cs}-3000.preview.app.github.dev`);
+  }
+
+  for (const h of [request.headers.get('x-forwarded-host'), request.headers.get('host')]) {
+    const host = (h || '').split(',')[0].trim().toLowerCase();
+    if (host) {
+      allowed.add(`http://${host}`);
+      allowed.add(`https://${host}`);
+    }
+  }
+
+  if (allowed.has(origin)) return true;
+
+  if (!process.env.APP_ORIGIN) {
+    try {
+      const u = new URL(origin);
+      if (u.protocol === 'https:' && (u.hostname.endsWith('.app.github.dev') || u.hostname.endsWith('.github.dev'))) {
+        return true;
+      }
+      if (u.protocol === 'http:' && (u.hostname === 'localhost' || u.hostname === '127.0.0.1')) {
+        return true;
+      }
+    } catch {
+      return false;
+    }
+  }
+
+  return false;
+}
 export function guard(request: NextRequest) {
   if (!['GET', 'HEAD'].includes(request.method)) {
-    const origin = request.headers.get('origin');
-    const allowed = new Set([appOrigin()]);
-    if (!process.env.APP_ORIGIN || process.env.NODE_ENV !== 'production' || getMode() === 'demo') {
-      allowed.add('http://localhost:3000');
-      allowed.add('http://127.0.0.1:3000');
-      if (process.env.CODESPACE_NAME) {
-        allowed.add(`https://${process.env.CODESPACE_NAME}-3000.${process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN || 'app.github.dev'}`);
-      }
-      const host = (request.headers.get('x-forwarded-host') || request.headers.get('host') || '').split(',')[0].trim();
-      if (host) {
-        const proto = (request.headers.get('x-forwarded-proto') || 'http').split(',')[0].trim();
-        if (proto === 'http' || proto === 'https') allowed.add(`${proto}://${host}`);
-      }
-    }
-    if (!origin || !allowed.has(origin) || request.headers.get('sec-fetch-site') === 'cross-site') {
+    if (!isAllowedOrigin(request)) {
       throw new AppError('ORIGIN_DENIED', 403);
     }
   }
