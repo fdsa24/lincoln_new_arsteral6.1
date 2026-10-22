@@ -12,7 +12,7 @@
 2. 해당 계정의 프로젝트에서 키를 만듭니다. UI 문구는 바뀔 수 있습니다.
 3. https://ai.google.dev/gemini-api/docs/models 에서 사용 가능한 모델을 확인합니다.
 4. 생성한 키는 **Codespaces의 `.env.local` 파일**의 `GEMINI_API_KEY=` 뒤에만 붙입니다.
-5. `GEMINI_MODEL` 기본값은 gemini-3.5-flash입니다. 계정에 없거나 중단되면 지원 모델로 변경하고 구조화 출력 호환성을 재시험해야 합니다.
+5. `GEMINI_MODEL` 기본값은 `gemini-3.8-flash`입니다(경량 대안: `gemini-3.5-flash-lite`). 계정에 없거나 중단되면 지원 모델로 변경하고 구조화 출력 호환성을 재시험해야 합니다.
 6. 서비스 요금과 사용량 제한을 확인합니다. 이 코드의 생성 시도 제한은 공급자 금액 상한과 다릅니다.
 
 ## 2. PostgreSQL 준비

@@ -5,7 +5,35 @@ import { AppError, messageFor } from '../errors';
 import { appOrigin, getLiveConfig, getMode } from './config';
 const COOKIE = 'lincoln_owner_v5';
 export function guard(request: NextRequest) {
-  return; // (모든 검사를 무시하고 즉시 통과시킴)
+  if (!['GET', 'HEAD'].includes(request.method)) {
+    const origin = request.headers.get('origin');
+    const allowed = new Set([appOrigin()]);
+    if (!process.env.APP_ORIGIN || process.env.NODE_ENV !== 'production' || getMode() === 'demo') {
+      allowed.add('http://localhost:3000');
+      allowed.add('http://127.0.0.1:3000');
+      if (process.env.CODESPACE_NAME) {
+        allowed.add(`https://${process.env.CODESPACE_NAME}-3000.${process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN || 'app.github.dev'}`);
+      }
+      const host = (request.headers.get('x-forwarded-host') || request.headers.get('host') || '').split(',')[0].trim();
+      if (host) {
+        const proto = (request.headers.get('x-forwarded-proto') || 'http').split(',')[0].trim();
+        if (proto === 'http' || proto === 'https') allowed.add(`${proto}://${host}`);
+      }
+    }
+    if (!origin || !allowed.has(origin) || request.headers.get('sec-fetch-site') === 'cross-site') {
+      throw new AppError('ORIGIN_DENIED', 403);
+    }
+  }
+  if (getMode() === 'live') {
+    const expected = getLiveConfig().classroomCode;
+    const supplied = request.headers.get('x-classroom-code') || '';
+    if (
+      supplied.length > 256 ||
+      !timingSafeEqual(createHash('sha256').update(supplied).digest(), createHash('sha256').update(expected).digest())
+    ) {
+      throw new AppError('ACCESS_DENIED', 401);
+    }
+  }
 }
 export function identity(request: NextRequest, allowCreate = false): { owner: string; cookie?: string } {
   const token = request.cookies.get(COOKIE)?.value;
@@ -16,7 +44,7 @@ export function identity(request: NextRequest, allowCreate = false): { owner: st
 }
 export function json(data: unknown, status = 200, cookie?: string) {
   const response = NextResponse.json(data, { status, headers: { 'Cache-Control': 'no-store' } });
-  if (cookie) response.cookies.set(COOKIE, cookie, { httpOnly: true, secure: appOrigin().startsWith('https:'), sameSite: 'strict', path: '/', maxAge: 60 * 60 * 24 * 7 });
+  if (cookie) response.cookies.set(COOKIE, cookie, { httpOnly: true, secure: process.env.NODE_ENV === 'production' && getMode() === 'live' && appOrigin().startsWith('https:'), sameSite: 'strict', path: '/', maxAge: 60 * 60 * 24 * 7 });
   return response;
 }
 export function failure(error: unknown) {

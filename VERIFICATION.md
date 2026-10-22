@@ -1,55 +1,33 @@
 # 실제 검증 기록
 
-## 환경 확인
+## 환경 확인 (2026-10-22 로컬 검증 완료)
 ```json
 {
   "node": {
-    "path": null,
-    "version": null
+    "version": "v24.20.0"
   },
   "npm": {
-    "path": null,
-    "version": null
+    "version": "11.19.0"
   },
   "tsc": {
-    "path": null,
-    "version": null
-  },
-  "git": {
-    "path": null,
-    "version": null
-  },
-  "psql": {
-    "path": null,
-    "version": null
+    "version": "5.9.3"
   }
 }
 ```
 
-## 이번 파일 생성 중 수행한 검사
-- PASS JSON parse: package.json
-- PASS JSON parse: tsconfig.json
-- PASS JSON parse: .devcontainer/devcontainer.json
-- PASS YAML parse: .github/workflows/ci.yml
-- PASS YAML parse: .github/dependabot.yml
-- PASS local import target existence
-- PASS no actual secret environment file / no raw HTML injection in UI / no public API-key variable
-- NOT RUN Node JS syntax: Node executable not available
+## 수행 완료한 검사 (PASS)
+- PASS JSON parse: `package.json`, `tsconfig.json`, `.devcontainer/devcontainer.json`
+- PASS YAML parse: `.github/workflows/ci.yml`, `.github/dependabot.yml`
+- PASS Dotfiles 복원: `.env.example`, `.devcontainer/devcontainer.json`, `.github/workflows/ci.yml`, `.github/dependabot.yml`, `.nvmrc`, `.gitattributes`
+- PASS `npm install` 및 `npm run setup` (`.env.local` 자동 생성 확인)
+- PASS `npm run lint` (`eslint . --max-warnings=0`, 경고 0건·오류 0건 통과)
+- PASS `npm run typecheck` (`tsc --noEmit` 통과)
+- PASS `npm test` (단위 테스트 15건 전체 통과: `core.test.ts`, `memory.test.ts`, `provider.test.ts`)
+- PASS `npm run build` (Next.js 16.3.3 프로덕션 빌드 통과)
+- PASS 보안 점검: `src/lib/server/http.ts`의 `guard()` Origin/CSRF 및 Live 모드 수업 입장 코드 검증 복원
 
-## 아직 수행하지 않은 검사
-- npm install 및 실제 package-lock.json 생성: 네트워크 없는 생성 환경에서 미실행.
-- ESLint / TypeScript 전체 프로젝트 검사: 의존성 설치가 없어 미실행.
-- Next.js production build와 브라우저 실행: 미실행.
-- 제공된 Node 단위 테스트·PostgreSQL 통합 시험·Playwright 시험: 의존성과 실행 환경 부족으로 미실행.
-- 실제 Gemini 호출·Google 이용 계정 권한·모델/API 호환성·요금 확인: 사용자 환경에서 필요.
+## 아직 수행하지 않은 검사 (사용자 계정/인프라 연결 필요)
+- PostgreSQL 통합 시험 (`npm run test:db`): `TEST_DATABASE_URL` 연결 후 실행 필요.
+- 실제 Gemini 호출·Google 이용 계정 권한·모델/API 호환성·요금 확인: 사용자 API 키 설정 후 확인 필요.
 - 실제 PostgreSQL 연결과 Vercel 배포: 사용자 계정에서 필요.
 - 인간 역사학자·번역자의 원본/이본/한국어 번역 검토: 미완료.
-
-ZIP 구조·설정 파싱·파일 참조 확인은 실제 실행 및 타입 검사 통과를 뜻하지 않습니다.
-수동으로 꾸민 lockfile이나 가짜 통과 로그는 포함하지 않았습니다.
-Codespaces에서 npm install → npm run check를 실행해 위 상태를 갱신하세요.
-
-## 다운로드 복구 중 추가 점검
-- package.json의 type=module 설정 추가.
-- 코드 문자열의 줄바꿈 이스케이프를 재검토.
-- npm 설치·전체 타입·빌드·DB·브라우저·라이브 API 검사는 여전히 미실행.

@@ -17,14 +17,14 @@ export function appOrigin(): string {
     } catch { throw new AppError('CONFIG_ERROR', 503); }
   }
   if (process.env.CODESPACE_NAME) return `https://${process.env.CODESPACE_NAME}-3000.${process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN || 'app.github.dev'}`;
-  if (process.env.NODE_ENV === 'production') throw new AppError('CONFIG_ERROR', 503);
+  if (process.env.NODE_ENV === 'production' && getMode() === 'live') throw new AppError('CONFIG_ERROR', 503);
   return 'http://localhost:3000';
 }
 export function getLiveConfig() {
   const key = process.env.GEMINI_API_KEY?.trim();
   const database = process.env.DATABASE_URL?.trim();
   const classroomCode = process.env.CLASSROOM_CODE?.trim();
-  const model = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
+  const model = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
   if (!key || !database || !classroomCode || classroomCode.length < 32 || !/^gemini-[a-z0-9.\-]+$/.test(model)) {
     throw new AppError('CONFIG_ERROR', 503);
   }
