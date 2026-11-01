@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { DEFAULT_PRESET, PRESETS } from '@/lib/catalog';
+import { DEFAULT_PRESET, eligibleSources, PRESETS } from '@/lib/catalog';
 import { messageFor } from '@/lib/errors';
 import type { ChatSession, Mode, Preset, SessionView, Turn } from '@/lib/types';
 
@@ -13,6 +13,77 @@ async function request<T>(path: string, code: string, signal: AbortSignal, metho
   if (!response.ok) throw new Error(data?.error?.message || '서버 통신 중 오류가 발생했습니다.');
   return data as T;
 }
+
+function formatSessionMarkdown(view: SessionView): string {
+  const { session, turns } = view;
+  const lines: string[] = [
+    '# Lincoln History Lab — 역사 탐구 대화 기록',
+    '',
+    `- **탐구 시점**: ${session.preset.label} (기준일: ${session.preset.cutoffDate})`,
+    `- **당시 지위**: ${session.preset.office}`,
+    `- **시간 정책**: ${session.preset.timePolicy}`,
+    `- **실행 모드**: ${session.mode === 'demo' ? '연습 모드 (사전 구성 예시)' : '실제 AI 모드 (생성 대사 + 학술 사료 연동)'}`,
+    `- **내보내기 시각**: ${new Date().toLocaleString('ko-KR')}`,
+    '',
+    '---',
+    '',
+  ];
+
+  for (const turn of turns) {
+    lines.push(`## 질문 ${turn.seq}`);
+    lines.push('');
+    lines.push(turn.text);
+    lines.push('');
+    if (turn.state !== 'complete' || !turn.answer) {
+      lines.push(`> 상태: ${turn.state}${turn.errorCode ? ` (${messageFor(turn.errorCode)})` : ''}`);
+      lines.push('');
+      continue;
+    }
+    const { answer } = turn;
+    lines.push('### 링컨의 관점에서 (AI 재현 대사 · 실제 발언 아님)');
+    lines.push('');
+    for (const p of answer.actor.paragraphs) {
+      lines.push(p);
+      lines.push('');
+    }
+    if (answer.actor.uncertainty) {
+      lines.push(`> **재현의 한계**: ${answer.actor.uncertainty}`);
+      lines.push('');
+    }
+    if (answer.quotes.length > 0) {
+      lines.push('### 등록 원문 발췌 인용');
+      lines.push('');
+      for (const q of answer.quotes) {
+        lines.push(`- **출처**: [${q.source.title} (${q.source.documentDate})](${q.source.url})`);
+        lines.push(`  > "${q.original}"`);
+        lines.push(`  - 한국어 번역 초안(미검토): ${q.koreanDraft}`);
+      }
+      lines.push('');
+    }
+    if (answer.historian) {
+      lines.push('### 현대 역사 해설 (AI 자동 검토)');
+      lines.push('');
+      lines.push(`- **시점 검토**: ${answer.historian.timeCheck}`);
+      lines.push(`- **자료로 확인할 사실**: ${answer.historian.facts}`);
+      lines.push(`- **해석과 추론**: ${answer.historian.interpretations}`);
+      lines.push(`- **미확인·제한 사항**: ${answer.historian.limitations}`);
+      lines.push('');
+    }
+    if (answer.sources.length > 0) {
+      lines.push('### 연결된 사료 및 학술 아카이브 출처');
+      lines.push('');
+      for (const s of answer.sources) {
+        const kindLabel = s.kind === 'archive-search' ? '학술 아카이브 검색 사료' : '서버 등록 원문 전사문';
+        lines.push(`- [${s.title} (${s.documentDate})](${s.url}) — *${kindLabel}* · ${s.locator}`);
+      }
+      lines.push('');
+    }
+    lines.push('---');
+    lines.push('');
+  }
+  return lines.join('\n');
+}
+
 function TurnCard({ turn, preset }: { turn: Turn; preset: Preset }) {
   const answer = turn.answer;
   return <article className="turn">
@@ -40,11 +111,19 @@ function TurnCard({ turn, preset }: { turn: Turn; preset: Preset }) {
         </dl> : <p className="notice">현대 해설 생성에 실패했습니다. 위 대사가 역사 검증을 통과했다는 뜻은 아닙니다.</p>}
       </details>
       {answer.sources.length > 0 && <details className="source-list"><summary>연결된 자료 {answer.sources.length}건 · 전체 대사의 정확성을 보증하지 않음</summary>
-        <ul>{answer.sources.map(s => <li key={s.id}><a href={s.url} target="_blank" rel="noopener noreferrer">{s.title} ({s.documentDate}) ↗</a><p>{s.locator}</p><p>{s.review}</p></li>)}</ul>
+        <ul>{answer.sources.map(s => <li key={s.id}>
+          <span className={`source-kind-badge ${s.kind === 'archive-search' ? 'archive' : 'primary'}`}>
+            {s.kind === 'archive-search' ? '학술 아카이브 검색 사료 (시점 검증됨)' : '서버 등록 원문 전사문'}
+          </span>{' '}
+          <a href={s.url} target="_blank" rel="noopener noreferrer">{s.title} ({s.documentDate}) ↗</a>
+          <p>{s.locator}</p>
+          <p>{s.review}</p>
+        </li>)}</ul>
       </details>}
     </div>}
   </article>;
 }
+
 export default function ChatApp({ mode }: { mode: Mode }) {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [view, setView] = useState<SessionView | null>(null);
@@ -53,6 +132,7 @@ export default function ChatApp({ mode }: { mode: Mode }) {
   const [unlocked, setUnlocked] = useState(mode === 'demo');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [exportNotice, setExportNotice] = useState('');
   const [pendingText, setPendingText] = useState('');
   const [pendingPreset, setPendingPreset] = useState<Preset | null>(null);
   const active = useRef<AbortController | null>(null);
@@ -64,7 +144,7 @@ export default function ChatApp({ mode }: { mode: Mode }) {
   const begin = useCallback(() => {
     active.current?.abort();
     const c = new AbortController(); active.current = c;
-    setBusy(true); setError(''); setPendingText('');
+    setBusy(true); setError(''); setExportNotice(''); setPendingText('');
     return c;
   }, []);
   const current = (c: AbortController) => active.current === c && !c.signal.aborted;
@@ -146,13 +226,44 @@ export default function ChatApp({ mode }: { mode: Mode }) {
     const c = active.current; active.current = null; c?.abort(); setBusy(false); setPendingText('');
     setError('화면의 대기를 중지했습니다. 서버 처리·과금까지 취소되었다는 뜻은 아닙니다. 대화를 다시 불러와 확인하세요.');
   }
+  async function copyConversation() {
+    if (!view || view.turns.length === 0) return;
+    try {
+      await navigator.clipboard.writeText(formatSessionMarkdown(view));
+      setExportNotice('대화 기록(Markdown)이 클립보드에 복사되었습니다.');
+    } catch {
+      setError('클립보드 복사에 실패했습니다. Markdown 저장 버튼을 이용해 주세요.');
+    }
+  }
+  function downloadConversation() {
+    if (!view || view.turns.length === 0) return;
+    const markdown = formatSessionMarkdown(view);
+    const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `lincoln-history-lab-${view.session.preset.id}.md`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    setExportNotice('대화 기록 파일(.md)을 저장했습니다.');
+  }
+
+  const activePreset = view?.session.preset;
+  const presetSources = activePreset ? eligibleSources(activePreset) : [];
+  const presetSuggestions = activePreset?.suggestions?.length
+    ? activePreset.suggestions
+    : ['노예 해방 선언은 모든 노예를 즉시 해방했나요?', '연방 보존과 노예 해방은 어떤 관계인가요?', '이 시점에서 무엇을 알 수 없나요?'];
+
   return <div className="shell">
     <a className="skip-link" href="#question">질문 입력으로 이동</a>
     <header className="topbar"><div><p className="brand-kicker">HISTORY / EVIDENCE / DIALOGUE</p><h1>Lincoln History Lab</h1><p>링컨의 시대를 묻고, 사료로 다시 읽기</p></div><span className={`mode-badge ${mode}`}>{mode === 'demo' ? '연습 모드 · AI 호출 없음' : '실제 AI 모드 · 이용 비용 발생 가능'}</span></header>
-    <div className="intro-strip"><strong>역사 시뮬레이션, 실제 인물의 답변이 아닙니다.</strong><span>생성 대사 · 원문 발췌 · 번역 초안 · 현대 해설을 구별해 읽으세요.</span></div>
-    {mode === 'demo' && <p className="demo-warning">연습 모드는 질문을 분석하지 않고 시점별 고정 예시를 보여 줍니다. 대화는 서버 메모리에 임시 보관되며 서버 재시작·만료 시 사라질 수 있습니다.</p>}
+    <div className="intro-strip"><strong>역사 시뮬레이션, 실제 인물의 답변이 아닙니다.</strong><span>생성 대사 · 원문 발췌 · 번역 초안 · 학술 아카이브 사료 · 현대 해설을 구별해 읽으세요.</span></div>
+    {mode === 'demo' && <p className="demo-warning">연습 모드는 AI 호출 없이 시점과 질문 주제에 맞춘 사전 구성 예시를 보여 줍니다. 대화는 서버 메모리에 임시 보관되며 서버 재시작·만료 시 사라질 수 있습니다.</p>}
     {!unlocked && <form className="unlock" onSubmit={e => { e.preventDefault(); void initialize(codeInput.trim()); }}><h2>수업 입장 코드</h2><p>운영자가 설정한 코드를 입력하세요. Gemini API 키를 입력하는 칸이 아닙니다.</p><label htmlFor="class-code">입장 코드</label><input id="class-code" type="password" autoComplete="off" value={codeInput} maxLength={256} onChange={e => setCodeInput(e.target.value)} /><button disabled={busy || !codeInput.trim()}>입장</button></form>}
     {error && <div className="error global-error" role="alert">{error}{view && <button onClick={() => void openSession(view.session.id)}>대화 다시 불러오기</button>}{!view && unlocked && <button onClick={() => void initialize(access.current)}>연결 다시 시도</button>}</div>}
+    {exportNotice && <div className="notice export-notice" role="status">{exportNotice}</div>}
     {unlocked && <div className="workspace">
       <aside className="sidebar"><h2>역사적 시점</h2><label htmlFor="timeline">새 대화의 날짜</label><select id="timeline" value={view?.session.preset.id || DEFAULT_PRESET} onChange={e => { const p = PRESETS.find(p => p.id === e.target.value); if (p) setPendingPreset(p); }}>{PRESETS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}</select>
         <button className="outline full" onClick={() => setPendingPreset(view?.session.preset || PRESETS[3])}>이 시점으로 새 대화</button>
@@ -161,14 +272,55 @@ export default function ChatApp({ mode }: { mode: Mode }) {
         <p className="muted">최대 7일 후 만료 · 방당 100개 질문<br/>개인정보·학생 이름을 입력하지 마세요.</p>
       </aside>
       <main className="chat-panel" aria-label="역사 대화">
-        {view ? <><div className="chat-toolbar"><div><span className="eyebrow">현재 고정된 시점</span><h2>{view.session.preset.label}</h2><p>{view.session.preset.office}</p></div><button className="text-button" onClick={() => void deleteSession()}>대화 삭제</button></div>
+        {view && activePreset ? <>
+          <div className="chat-toolbar">
+            <div>
+              <span className="eyebrow">현재 고정된 시점 · 기준일 {activePreset.cutoffDate}</span>
+              <h2>{activePreset.label}</h2>
+              <p>{activePreset.office}</p>
+            </div>
+            <div className="chat-toolbar-actions">
+              <button type="button" className="text-button" disabled={view.turns.length === 0} onClick={() => void copyConversation()}>대화 복사</button>
+              <button type="button" className="text-button" disabled={view.turns.length === 0} onClick={downloadConversation}>Markdown 저장</button>
+              <button type="button" className="text-button danger-text" onClick={() => void deleteSession()}>대화 삭제</button>
+            </div>
+          </div>
+          <details className="preset-context-bar">
+            <summary>시점 배경 및 이용 가능 사료 보기 <span>등록 원문 {presetSources.length}건 · 학술 아카이브(LOC/NPS/NARA) 시점 검증 연동</span></summary>
+            <div className="preset-context-body">
+              <p><strong>시간 정책:</strong> {activePreset.timePolicy}</p>
+              <p><strong>재현 지침:</strong> {activePreset.brief}</p>
+              <p><strong>학술 사료 검색 원칙:</strong> 기준일({activePreset.cutoffDate}) 이전에 작성된 신뢰 도메인(<code>loc.gov</code>, <code>archives.gov</code>, <code>nps.gov</code>, <code>dickinson.edu</code>, <code>yale.edu</code>) 사료만 허용하여 미래 사건 유입(시대착오)을 차단합니다.</p>
+              {presetSources.length > 0 ? (
+                <ul className="preset-source-preview">
+                  {presetSources.map(s => (
+                    <li key={s.id}>
+                      <strong>{s.title} ({s.documentDate})</strong> — <a href={s.url} target="_blank" rel="noopener noreferrer">원문 전사문 ↗</a>
+                      <p>{s.context}</p>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="muted">이 시점에는 기본 등록 전사문이 없으며, 질문 시 기준일 이전 학술 아카이브(1858년 연설·토론 기록 등)가 보조 자료로 연결됩니다.</p>
+              )}
+            </div>
+          </details>
           <div className="conversation" aria-busy={busy}>
-            {view.turns.length === 0 && <section className="welcome"><span className="welcome-number">01 — ASK THE PAST</span><h2>같은 질문도,<br/>다른 시점에서 살펴보세요.</h2><p>예시 질문을 눌러 시작할 수 있습니다.</p><div className="suggestions">{['노예 해방 선언은 모든 노예를 즉시 해방했나요?','연방 보존과 노예 해방은 어떤 관계인가요?','이 시점에서 무엇을 알 수 없나요?'].map(q => <button key={q} onClick={() => setInput(q)}>{q}</button>)}</div><p className="limitation">{view.session.preset.editorialWarning}</p></section>}
-            {view.turns.map(t => <TurnCard key={t.id} turn={t} preset={view.session.preset} />)}
+            {view.turns.length === 0 && <section className="welcome"><span className="welcome-number">01 — ASK THE PAST</span><h2>같은 질문도,<br/>다른 시점에서 살펴보세요.</h2><p>이 시점({activePreset.label})에 맞춘 추천 질문을 눌러 시작할 수 있습니다.</p><div className="suggestions">{presetSuggestions.map(q => <button key={q} onClick={() => setInput(q)}>{q}</button>)}</div><p className="limitation">{activePreset.editorialWarning}</p></section>}
+            {view.turns.map(t => <TurnCard key={t.id} turn={t} preset={activePreset} />)}
             {busy && <div className="loading" role="status"><span className="spinner"/>{pendingText ? '답변을 준비하고 있습니다…' : '대화를 불러오고 있습니다…'}{pendingText && <p>보낸 질문: {pendingText}</p>}<button onClick={cancelRequest}>대기 중지</button></div>}
             <div ref={bottom}/>
           </div>
-          <form className="composer" onSubmit={e => { e.preventDefault(); void send(); }}><label htmlFor="question">링컨에게 질문하기</label><textarea id="question" placeholder="사료와 당시의 관점을 물어보세요." value={input} maxLength={4000} rows={3} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (!e.nativeEvent.isComposing && e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }}/><div><small>{input.length}/4,000 · Enter 전송 / Shift+Enter 줄바꿈</small><button type="submit" disabled={busy || !input.trim()}>질문 보내기</button></div></form>
+          <form className="composer" onSubmit={e => { e.preventDefault(); void send(); }}>
+            {view.turns.length > 0 && (
+              <div className="inline-suggestions" aria-label="이 시점의 추천 질문">
+                {presetSuggestions.map(q => <button type="button" key={q} onClick={() => setInput(q)}>{q}</button>)}
+              </div>
+            )}
+            <label htmlFor="question">링컨에게 질문하기</label>
+            <textarea id="question" placeholder="사료와 당시의 관점을 물어보세요." value={input} maxLength={4000} rows={3} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (!e.nativeEvent.isComposing && e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }}/>
+            <div><small>{input.length}/4,000 · Enter 전송 / Shift+Enter 줄바꿈</small><button type="submit" disabled={busy || !input.trim()}>질문 보내기</button></div>
+          </form>
         </> : <div className="welcome"><h2>대화를 선택하거나 새로 만들어 주세요.</h2><button disabled={busy} onClick={() => void createSession(PRESETS[3])}>1863년 연습 대화 만들기</button></div>}
       </main>
     </div>}

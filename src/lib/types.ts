@@ -7,6 +7,7 @@ export interface Preset {
   office: string;
   brief: string;
   editorialWarning: string;
+  suggestions?: string[];
 }
 export interface Source {
   id: string;
@@ -15,7 +16,7 @@ export interface Source {
   availableFrom: string;
   url: string;
   locator: string;
-  kind: 'primary-transcript';
+  kind: 'primary-transcript' | 'archive-search';
   review: string;
   excerpt: string;
   context: string;

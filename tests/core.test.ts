@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { DEFAULT_PRESET, PRESETS, QUOTES, SOURCES, eligibleQuotes, eligibleSources, findPreset } from '../src/lib/catalog';
 import { actorPrompt } from '../src/lib/server/prompts';
 import { buildHistory, createSessionSchema, isHttpsSource, readJsonLimited, sendMessageSchema, validateActor } from '../src/lib/core';
+import { CURATED_ARCHIVE_POOL, filterArchiveSourcesByCutoff, isTrustedAcademicUrl, searchAcademicArchives } from '../src/lib/server/archive';
 import { demoAnswer } from '../src/lib/server/generation';
 import type { Turn } from '../src/lib/types';
 const preset = findPreset(DEFAULT_PRESET)!;
@@ -35,8 +36,36 @@ test('배우 입력에 현대 편집 해설·역사학자 출력 없음', () => 
   assert.equal(h.length, 1); assert.ok(!JSON.stringify(h).includes('HISTORIAN_SECRET_MARKER')); assert.ok(!JSON.stringify(h).includes('실패한질문'));
   assert.equal(buildHistory([t], 6, 1).length, 0);
 });
-test('모든 시점의 연습 응답은 스키마·날짜 규칙을 통과', () => {
-  for (const p of PRESETS) assert.deepEqual(validateActor(demoAnswer(p).actor,p),demoAnswer(p).actor);
+test('모든 시점의 연습 응답과 추천 질문별 응답은 스키마·날짜 규칙을 통과', () => {
+  for (const p of PRESETS) {
+    assert.ok((p.suggestions?.length || 0) >= 3);
+    assert.deepEqual(validateActor(demoAnswer(p).actor, p), demoAnswer(p).actor);
+    for (const q of p.suggestions || []) {
+      const ans = demoAnswer(p, q);
+      assert.deepEqual(validateActor(ans.actor, p), ans.actor);
+    }
+  }
+});
+test('학술 아카이브 검색은 신뢰 도메인과 시점(cutoffDate) 이전 사료만 허용', async () => {
+  assert.equal(isTrustedAcademicUrl('https://www.loc.gov/resource/mal.4361300/'), true);
+  assert.equal(isTrustedAcademicUrl('https://www.archives.gov/milestone-documents/emancipation-proclamation'), true);
+  assert.equal(isTrustedAcademicUrl('https://example.com/fake-lincoln-quote'), false);
+  assert.equal(isTrustedAcademicUrl('http://www.loc.gov/insecure'), false);
+
+  const filtered1858 = filterArchiveSourcesByCutoff(CURATED_ARCHIVE_POOL, PRESETS[0]);
+  assert.ok(filtered1858.length >= 2);
+  assert.ok(filtered1858.every(s => s.documentDate < PRESETS[0].cutoffDate));
+
+  const fakeLocFetch: typeof fetch = async () => Response.json({
+    results: [
+      { title: '1860 Valid Document', date: '1860-05-18', url: 'https://www.loc.gov/item/mal001/', description: ['Lincoln nomination record'] },
+      { title: '1865 Future Document', date: '1865-04-11', url: 'https://www.loc.gov/item/mal999/', description: ['Reconstruction speech'] },
+      { title: 'Untrusted Host Document', date: '1859-01-01', url: 'https://untrusted.example.org/item', description: ['Fake quote'] },
+    ],
+  });
+  const searched = await searchAcademicArchives(PRESETS[1], '취임사 연방 보존', AbortSignal.timeout(2000), fakeLocFetch);
+  assert.ok(searched.some(s => s.url === 'https://www.loc.gov/item/mal001/'));
+  assert.ok(searched.every(s => s.documentDate < PRESETS[1].cutoffDate && isTrustedAcademicUrl(s.url)));
 });
 test('본문 바이트를 실제로 제한하고 JSON을 파싱', async () => {
   const body = JSON.stringify({ text: '가'.repeat(100) });

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { eligibleQuotes, eligibleSources, findPreset } from './catalog';
 import { AppError } from './errors';
-import type { ActorOutput, HistoryPair, Preset, Turn } from './types';
+import type { ActorOutput, HistoryPair, Preset, Source, Turn } from './types';
 
 export const createSessionSchema = z.object({ presetId: z.string().refine(id => !!findPreset(id)) }).strict();
 export const sendMessageSchema = z.object({ clientRequestId: z.string().uuid(), text: z.string().trim().min(1).max(4000) }).strict();
@@ -21,11 +21,12 @@ export function parseInput<T>(schema: z.ZodType<T>, data: unknown): T {
   if (!result.success) throw new AppError('INVALID_INPUT');
   return result.data;
 }
-export function validateActor(data: unknown, preset: Preset): ActorOutput {
+export function validateActor(data: unknown, preset: Preset, extraSources: Source[] = []): ActorOutput {
   const parsed = actorSchema.safeParse(data);
   if (!parsed.success) throw new AppError('INVALID_MODEL_OUTPUT', 502);
   const quotes = new Set(eligibleQuotes(preset).map(q => q.id));
-  const sources = new Set(eligibleSources(preset).map(s => s.id));
+  const validExtra = extraSources.filter(s => s.documentDate < preset.cutoffDate && s.availableFrom < preset.cutoffDate && isHttpsSource(s.url));
+  const sources = new Set([...eligibleSources(preset), ...validExtra].map(s => s.id));
   if (parsed.data.quoteIds.some(id => !quotes.has(id)) || parsed.data.sourceIds.some(id => !sources.has(id))) {
     throw new AppError('INVALID_MODEL_OUTPUT', 502);
   }
