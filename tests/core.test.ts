@@ -45,6 +45,11 @@ test('모든 시점의 연습 응답과 추천 질문별 응답은 스키마·�
       assert.deepEqual(validateActor(ans.actor, p), ans.actor);
     }
   }
+  const heckler1858 = demoAnswer(PRESETS[0], '니그로 인종 혼합을 주장하는 위선자 아닌가?');
+  assert.deepEqual(validateActor(heckler1858.actor, PRESETS[0]), heckler1858.actor);
+  assert.ok(heckler1858.actor.paragraphs[0].includes('스프링필드 연설'));
+  assert.ok(heckler1858.sources.some(s => s.id === 'archive-dred-scott-1857'));
+  assert.ok(heckler1858.sources.some(s => s.id === 'archive-ottawa-debate-1858'));
 });
 test('학술 아카이브 검색은 신뢰 도메인과 시점(cutoffDate) 이전 사료만 허용', async () => {
   assert.equal(isTrustedAcademicUrl('https://www.loc.gov/resource/mal.4361300/'), true);

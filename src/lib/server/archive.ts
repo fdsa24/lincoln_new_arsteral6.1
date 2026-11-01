@@ -26,6 +26,18 @@ export function isTrustedAcademicUrl(value: string): boolean {
 
 export const CURATED_ARCHIVE_POOL: Source[] = [
   {
+    id: 'archive-dred-scott-1857',
+    title: '[학술 아카이브] 드레드 스콧 판결 반박 연설 (Speech on the Dred Scott Decision)',
+    documentDate: '1857-06-26',
+    availableFrom: '1857-06-26',
+    url: 'https://www.nps.gov/liho/learn/historyculture/dredscott.htm',
+    locator: '미 국립공원관리청(NPS) Lincoln Home 전사문 · counterfeit logic 반박 문단',
+    kind: 'archive-search',
+    review: '신뢰된 공공 역사 아카이브(nps.gov) 자동 색인 사료. 전문 번역 및 인간 연구자 대조 미완료.',
+    excerpt: 'I protest against that counterfeit logic which concludes that, because I do not want a black woman for a slave I must necessarily want her for a wife. I need not have her for either, I can just leave her alone. In some respects she certainly is not my equal; but in her natural right to eat the bread she earns with her own hands without asking leave of any one else, she is my equal, and the equal of all others.',
+    context: '1857년 6월 26일 스프링필드 연설로, 노예제 반대자를 인종 혼합론자라며 원색적으로 비난하던 반대파의 흑색선전을 거짓된 궤변(counterfeit logic)이라고 정면 반박하며 흑인의 자연권을 옹호한 사료다.',
+  },
+  {
     id: 'archive-house-divided-1858',
     title: '[학술 아카이브] 분열된 집 연설 (House Divided Speech)',
     documentDate: '1858-06-16',
@@ -36,6 +48,18 @@ export const CURATED_ARCHIVE_POOL: Source[] = [
     review: '신뢰된 공공 역사 아카이브(nps.gov) 자동 색인 사료. 전문 번역 및 인간 연구자 대조 미완료.',
     excerpt: 'A house divided against itself cannot stand. I believe this government cannot endure, permanently half slave and half free. I do not expect the Union to be dissolved, I do not expect the house to fall, but I do expect it will cease to be divided.',
     context: '1858년 6월 일리노이 공화당 주 전당대회에서 상원의원 후보 지명을 수락하며 노예제 확산 저지 입장을 밝힌 연설이다.',
+  },
+  {
+    id: 'archive-ottawa-debate-1858',
+    title: '[학술 아카이브] 링컨-더글러스 제1차 합동 토론 (Ottawa Debate)',
+    documentDate: '1858-08-21',
+    availableFrom: '1858-08-21',
+    url: 'https://www.nps.gov/liho/learn/historyculture/ottawa.htm',
+    locator: '미 국립공원관리청(NPS) Lincoln-Douglas Debates 전사문 · 제1차 오타와 토론 링컨 답변부',
+    kind: 'archive-search',
+    review: '신뢰된 공공 역사 아카이브(nps.gov) 자동 색인 사료. 전문 번역 및 인간 연구자 대조 미완료.',
+    excerpt: 'There is no reason in the world why the negro is not entitled to all the natural rights enumerated in the Declaration of Independence, the right to life, liberty, and the pursuit of happiness. I hold that he is as much entitled to these as the white man.',
+    context: '1858년 8월 21일 오타와 토론에서 더글러스 진영의 인종 비하 공세에 맞서, 당대 일리노이주의 사회적·정치적 평등에 대한 한계를 인정하면서도 독립선언서가 천명한 자연권만큼은 흑인에게도 동등하게 보장되어야 한다고 밝힌 사료다.',
   },
   {
     id: 'archive-alton-debate-1858',
@@ -88,10 +112,10 @@ export const CURATED_ARCHIVE_POOL: Source[] = [
 ];
 
 const KEYWORD_MAP: Array<{ pattern: RegExp; query: string }> = [
-  { pattern: /더글러스|토론|상원|일리노이|분열|확산|1858/u, query: 'Stephen Douglas debate slavery Illinois Senate' },
+  { pattern: /더글러스|토론|상원|일리노이|분열|확산|니그로|인종|혼혈|궤변|주장|1858/u, query: 'Stephen Douglas debate slavery negro equality Dred Scott Illinois' },
   { pattern: /취임|분리|남부|헌법|간섭|1861/u, query: 'inaugural secession Constitution Union' },
-  { pattern: /그릴리|서한|편지|소망|직무|1862/u, query: 'Horace Greeley Union slavery letter' },
-  { pattern: /해방|선언|경계|군대|군 복무|흑인|병사|1863/u, query: 'Emancipation Proclamation colored troops military' },
+  { pattern: /그릴리|서한|편지|소망|직무|위선|1862/u, query: 'Horace Greeley Union slavery letter' },
+  { pattern: /해방|선언|경계|군대|군 복무|흑인|병사|1863/u, query: 'Emancipation Proclamation colored troops military border states' },
   { pattern: /게티즈버그|추모|봉헌/u, query: 'Gettysburg Address dedication freedom' },
   { pattern: /재건|복귀|루이지애나|참정권|투표|수정헌법|13조|화해|1865/u, query: 'reconstruction Louisiana amendment suffrage amnesty' },
   { pattern: /인신보호|영장|계엄|체포/u, query: 'habeas corpus martial law arrest' },
