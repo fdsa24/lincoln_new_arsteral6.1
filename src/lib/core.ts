@@ -4,7 +4,11 @@ import { AppError } from './errors';
 import type { ActorOutput, HistoryPair, Preset, Source, Turn } from './types';
 
 export const createSessionSchema = z.object({ presetId: z.string().refine(id => !!findPreset(id)) }).strict();
-export const sendMessageSchema = z.object({ clientRequestId: z.string().uuid(), text: z.string().trim().min(1).max(4000) }).strict();
+export const sendMessageSchema = z.object({
+  clientRequestId: z.string().uuid(),
+  text: z.string().trim().min(1).max(4000),
+  stance: z.enum(['strict', 'imaginative']).optional(),
+}).strict();
 export const actorSchema = z.object({
   paragraphs: z.array(z.string().trim().min(1).max(1600)).min(1).max(3),
   quoteIds: z.array(z.string().max(100)).max(2),

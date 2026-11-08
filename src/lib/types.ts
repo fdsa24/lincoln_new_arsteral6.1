@@ -1,4 +1,5 @@
 export type Mode = 'demo' | 'live';
+export type Stance = 'strict' | 'imaginative';
 export interface Preset {
   id: string;
   label: string;
@@ -44,6 +45,7 @@ export interface HistorianOutput {
 }
 export interface Answer {
   mode: Mode;
+  stance?: Stance;
   actor: ActorOutput;
   quotes: Array<Quote & { source: Source }>;
   sources: Source[];

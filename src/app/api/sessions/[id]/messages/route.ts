@@ -17,9 +17,10 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     const result = await store.begin(who.owner, id, input.clientRequestId, input.text);
     if (result.cached) return json({ turn: result.turn, cached: true });
     pending = { owner: who.owner, sessionId: id, requestId: input.clientRequestId };
+    const stance = input.stance ?? 'strict';
     const signal = AbortSignal.any([req.signal, AbortSignal.timeout(60000)]);
-    const answer = getMode() === 'demo' ? demoAnswer(result.view.session.preset, input.text)
-      : await liveAnswer(result.view.session.preset, input.text, result.view.turns, getLiveConfig(), signal);
+    const answer = getMode() === 'demo' ? demoAnswer(result.view.session.preset, input.text, stance)
+      : await liveAnswer(result.view.session.preset, input.text, result.view.turns, getLiveConfig(), signal, stance);
     const turn = await store.complete(who.owner, id, input.clientRequestId, answer);
     return json({ turn, cached: false });
   } catch (e) {

@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { DEFAULT_PRESET, eligibleSources, PRESETS } from '@/lib/catalog';
 import { messageFor } from '@/lib/errors';
-import type { ChatSession, Mode, Preset, SessionView, Turn } from '@/lib/types';
+import type { ChatSession, Mode, Preset, SessionView, Stance, Turn } from '@/lib/types';
 
 async function request<T>(path: string, code: string, signal: AbortSignal, method = 'GET', body?: unknown): Promise<T> {
   const response = await fetch(path, { method, signal, cache: 'no-store', credentials: 'same-origin',
@@ -12,6 +12,10 @@ async function request<T>(path: string, code: string, signal: AbortSignal, metho
   const data = await response.json();
   if (!response.ok) throw new Error(data?.error?.message || '서버 통신 중 오류가 발생했습니다.');
   return data as T;
+}
+
+function stanceLabel(stance?: Stance): string {
+  return stance === 'imaginative' ? '역사적 상상력 (개연성 추론 포함)' : '엄격 고증 (사료 실증 중심)';
 }
 
 function formatSessionMarkdown(view: SessionView): string {
@@ -30,7 +34,8 @@ function formatSessionMarkdown(view: SessionView): string {
   ];
 
   for (const turn of turns) {
-    lines.push(`## 질문 ${turn.seq}`);
+    const turnStance = turn.answer?.stance ?? 'strict';
+    lines.push(`## 질문 ${turn.seq} · [${stanceLabel(turnStance)}]`);
     lines.push('');
     lines.push(turn.text);
     lines.push('');
@@ -40,7 +45,7 @@ function formatSessionMarkdown(view: SessionView): string {
       continue;
     }
     const { answer } = turn;
-    lines.push('### 링컨의 관점에서 (AI 재현 대사 · 실제 발언 아님)');
+    lines.push(`### 링컨의 관점에서 (${stanceLabel(turnStance)} · 실제 발언 아님)`);
     lines.push('');
     for (const p of answer.actor.paragraphs) {
       lines.push(p);
@@ -84,14 +89,33 @@ function formatSessionMarkdown(view: SessionView): string {
   return lines.join('\n');
 }
 
-function TurnCard({ turn, preset }: { turn: Turn; preset: Preset }) {
+function TurnCard({
+  turn,
+  preset,
+  onCompareStance,
+}: {
+  turn: Turn;
+  preset: Preset;
+  onCompareStance: (questionText: string, nextStance: Stance) => void;
+}) {
   const answer = turn.answer;
+  const currentStance: Stance = answer?.stance ?? 'strict';
+  const oppositeStance: Stance = currentStance === 'strict' ? 'imaginative' : 'strict';
+
   return <article className="turn">
     <div className="user-bubble"><span className="eyebrow">나의 질문</span><p>{turn.text}</p></div>
     {turn.state === 'pending' && <p className="notice">서버에서 처리 중입니다. 잠시 후 ‘대화 다시 불러오기’를 누르세요.</p>}
     {(turn.state === 'failed' || turn.state === 'blocked') && <p className="error" role="status">{messageFor(turn.errorCode || 'INTERNAL_ERROR')}</p>}
     {answer && <div className="answer-card">
-      <div className="answer-heading"><span className="badge">{answer.mode === 'demo' ? '고정 연습 예시' : 'AI 생성 대사 · 실제 발언 아님'}</span><span>{preset.cutoffDate}</span></div>
+      <div className="answer-heading">
+        <div className="answer-badges">
+          <span className="badge">{answer.mode === 'demo' ? '고정 연습 예시' : 'AI 생성 대사 · 실제 발언 아님'}</span>
+          <span className={`badge stance-badge ${currentStance}`}>
+            {currentStance === 'imaginative' ? '역사적 상상력 · 개연성 추론 포함' : '엄격 고증 · 사료 실증 중심'}
+          </span>
+        </div>
+        <span>{preset.cutoffDate}</span>
+      </div>
       <h3>링컨의 관점에서</h3>
       {answer.actor.paragraphs.map((p,i) => <p className="dialogue" key={i}>{p}</p>)}
       {answer.actor.uncertainty && <p className="limitation">재현의 한계 · {answer.actor.uncertainty}</p>}
@@ -120,6 +144,15 @@ function TurnCard({ turn, preset }: { turn: Turn; preset: Preset }) {
           <p>{s.review}</p>
         </li>)}</ul>
       </details>}
+      <div className="compare-bar">
+        <button
+          type="button"
+          className="compare-button"
+          onClick={() => onCompareStance(turn.text, oppositeStance)}
+        >
+          같은 질문을 ‘{oppositeStance === 'imaginative' ? '역사적 상상력' : '엄격 고증'}’ 모드로 입력해 비교하기 ↗
+        </button>
+      </div>
     </div>}
   </article>;
 }
@@ -128,6 +161,7 @@ export default function ChatApp({ mode }: { mode: Mode }) {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [view, setView] = useState<SessionView | null>(null);
   const [input, setInput] = useState('');
+  const [stance, setStance] = useState<Stance>('strict');
   const [codeInput, setCodeInput] = useState('');
   const [unlocked, setUnlocked] = useState(mode === 'demo');
   const [busy, setBusy] = useState(false);
@@ -140,6 +174,7 @@ export default function ChatApp({ mode }: { mode: Mode }) {
   const bottom = useRef<HTMLDivElement>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const cancelButton = useRef<HTMLButtonElement>(null);
+  const questionInput = useRef<HTMLTextAreaElement>(null);
 
   const begin = useCallback(() => {
     active.current?.abort();
@@ -213,9 +248,14 @@ export default function ChatApp({ mode }: { mode: Mode }) {
     const text = input.trim();
     if (!view || !text || active.current) return;
     const sessionId = view.session.id;
+    const selectedStance = stance;
     const c = begin(); setPendingText(text); setInput('');
     try {
-      const data = await request<{ turn: Turn }>(`/api/sessions/${sessionId}/messages`, access.current, c.signal, 'POST', { clientRequestId: crypto.randomUUID(), text });
+      const data = await request<{ turn: Turn }>(`/api/sessions/${sessionId}/messages`, access.current, c.signal, 'POST', {
+        clientRequestId: crypto.randomUUID(),
+        text,
+        stance: selectedStance,
+      });
       if (!current(c)) return;
       setView(prev => prev?.session.id === sessionId ? { ...prev, turns: [...prev.turns.filter(t => t.id !== data.turn.id), data.turn] } : prev);
     } catch (e) {
@@ -225,6 +265,11 @@ export default function ChatApp({ mode }: { mode: Mode }) {
   function cancelRequest() {
     const c = active.current; active.current = null; c?.abort(); setBusy(false); setPendingText('');
     setError('화면의 대기를 중지했습니다. 서버 처리·과금까지 취소되었다는 뜻은 아닙니다. 대화를 다시 불러와 확인하세요.');
+  }
+  function prepareCompareStance(questionText: string, nextStance: Stance) {
+    setStance(nextStance);
+    setInput(questionText);
+    questionInput.current?.focus();
   }
   async function copyConversation() {
     if (!view || view.turns.length === 0) return;
@@ -259,8 +304,8 @@ export default function ChatApp({ mode }: { mode: Mode }) {
   return <div className="shell">
     <a className="skip-link" href="#question">질문 입력으로 이동</a>
     <header className="topbar"><div><p className="brand-kicker">HISTORY / EVIDENCE / DIALOGUE</p><h1>Lincoln History Lab</h1><p>링컨의 시대를 묻고, 사료로 다시 읽기</p></div><span className={`mode-badge ${mode}`}>{mode === 'demo' ? '연습 모드 · AI 호출 없음' : '실제 AI 모드 · 이용 비용 발생 가능'}</span></header>
-    <div className="intro-strip"><strong>역사 시뮬레이션, 실제 인물의 답변이 아닙니다.</strong><span>생성 대사 · 원문 발췌 · 번역 초안 · 학술 아카이브 사료 · 현대 해설을 구별해 읽으세요.</span></div>
-    {mode === 'demo' && <p className="demo-warning">연습 모드는 AI 호출 없이 시점과 질문 주제에 맞춘 사전 구성 예시를 보여 줍니다. 대화는 서버 메모리에 임시 보관되며 서버 재시작·만료 시 사라질 수 있습니다.</p>}
+    <div className="intro-strip"><strong>역사 시뮬레이션, 실제 인물의 답변이 아닙니다.</strong><span>엄격 고증 · 역사적 상상력 · 원문 발췌 · 학술 아카이브 사료 · 현대 해설을 비교해 읽으세요.</span></div>
+    {mode === 'demo' && <p className="demo-warning">연습 모드는 AI 호출 없이 시점·질문 주제·재현 성향(엄격 고증 / 역사적 상상력)에 맞춘 사전 구성 예시를 보여 줍니다. 대화는 서버 메모리에 임시 보관되며 서버 재시작·만료 시 사라질 수 있습니다.</p>}
     {!unlocked && <form className="unlock" onSubmit={e => { e.preventDefault(); void initialize(codeInput.trim()); }}><h2>수업 입장 코드</h2><p>운영자가 설정한 코드를 입력하세요. Gemini API 키를 입력하는 칸이 아닙니다.</p><label htmlFor="class-code">입장 코드</label><input id="class-code" type="password" autoComplete="off" value={codeInput} maxLength={256} onChange={e => setCodeInput(e.target.value)} /><button disabled={busy || !codeInput.trim()}>입장</button></form>}
     {error && <div className="error global-error" role="alert">{error}{view && <button onClick={() => void openSession(view.session.id)}>대화 다시 불러오기</button>}{!view && unlocked && <button onClick={() => void initialize(access.current)}>연결 다시 시도</button>}</div>}
     {exportNotice && <div className="notice export-notice" role="status">{exportNotice}</div>}
@@ -301,25 +346,50 @@ export default function ChatApp({ mode }: { mode: Mode }) {
                   ))}
                 </ul>
               ) : (
-                <p className="muted">이 시점에는 기본 등록 전사문이 없으며, 질문 시 기준일 이전 학술 아카이브(1858년 연설·토론 기록 등)가 보조 자료로 연결됩니다.</p>
+                <p className="muted">이 시점에는 기본 등록 전사문이 없으며, 질문 시 기준일 이전 학술 아카이브(1857~1858년 연설·토론 기록 등)가 보조 자료로 연결됩니다.</p>
               )}
             </div>
           </details>
           <div className="conversation" aria-busy={busy}>
-            {view.turns.length === 0 && <section className="welcome"><span className="welcome-number">01 — ASK THE PAST</span><h2>같은 질문도,<br/>다른 시점에서 살펴보세요.</h2><p>이 시점({activePreset.label})에 맞춘 추천 질문을 눌러 시작할 수 있습니다.</p><div className="suggestions">{presetSuggestions.map(q => <button key={q} onClick={() => setInput(q)}>{q}</button>)}</div><p className="limitation">{activePreset.editorialWarning}</p></section>}
-            {view.turns.map(t => <TurnCard key={t.id} turn={t} preset={activePreset} />)}
-            {busy && <div className="loading" role="status"><span className="spinner"/>{pendingText ? '답변을 준비하고 있습니다…' : '대화를 불러오고 있습니다…'}{pendingText && <p>보낸 질문: {pendingText}</p>}<button onClick={cancelRequest}>대기 중지</button></div>}
+            {view.turns.length === 0 && <section className="welcome"><span className="welcome-number">01 — ASK THE PAST</span><h2>같은 질문도,<br/>다른 시점과 고증 모드로 살펴보세요.</h2><p>하단에서 <strong>엄격 고증</strong>과 <strong>역사적 상상력</strong> 모드를 전환하며 답변 차이를 비교할 수 있습니다.</p><div className="suggestions">{presetSuggestions.map(q => <button key={q} onClick={() => setInput(q)}>{q}</button>)}</div><p className="limitation">{activePreset.editorialWarning}</p></section>}
+            {view.turns.map(t => <TurnCard key={t.id} turn={t} preset={activePreset} onCompareStance={prepareCompareStance} />)}
+            {busy && <div className="loading" role="status"><span className="spinner"/>{pendingText ? `답변을 준비하고 있습니다 (${stance === 'imaginative' ? '역사적 상상력' : '엄격 고증'})…` : '대화를 불러오고 있습니다…'}{pendingText && <p>보낸 질문: {pendingText}</p>}<button onClick={cancelRequest}>대기 중지</button></div>}
             <div ref={bottom}/>
           </div>
           <form className="composer" onSubmit={e => { e.preventDefault(); void send(); }}>
+            <div className="stance-selector" role="group" aria-label="재현 성향 모드 선택">
+              <div className="stance-buttons">
+                <button
+                  type="button"
+                  aria-pressed={stance === 'strict'}
+                  className={`stance-pill ${stance === 'strict' ? 'active strict' : ''}`}
+                  onClick={() => setStance('strict')}
+                >
+                  엄격 고증
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={stance === 'imaginative'}
+                  className={`stance-pill ${stance === 'imaginative' ? 'active imaginative' : ''}`}
+                  onClick={() => setStance('imaginative')}
+                >
+                  역사적 상상력
+                </button>
+              </div>
+              <span className="stance-desc">
+                {stance === 'strict'
+                  ? '확인된 당대 사료 범위만 절제해 발언하며, 사료 밖 가상 추론을 삼갑니다.'
+                  : '미래 예언·가짜 인용은 차단하되, 미등록 질문에도 당대 가치관에 비춘 개연성 추론을 전개합니다.'}
+              </span>
+            </div>
             {view.turns.length > 0 && (
               <div className="inline-suggestions" aria-label="이 시점의 추천 질문">
                 {presetSuggestions.map(q => <button type="button" key={q} onClick={() => setInput(q)}>{q}</button>)}
               </div>
             )}
             <label htmlFor="question">링컨에게 질문하기</label>
-            <textarea id="question" placeholder="사료와 당시의 관점을 물어보세요." value={input} maxLength={4000} rows={3} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (!e.nativeEvent.isComposing && e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }}/>
-            <div><small>{input.length}/4,000 · Enter 전송 / Shift+Enter 줄바꿈</small><button type="submit" disabled={busy || !input.trim()}>질문 보내기</button></div>
+            <textarea ref={questionInput} id="question" placeholder="사료와 당시의 관점, 혹은 역사적으로 있을 법한 질문을 물어보세요." value={input} maxLength={4000} rows={3} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (!e.nativeEvent.isComposing && e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }}/>
+            <div><small>{input.length}/4,000 · 현재 모드: {stance === 'imaginative' ? '역사적 상상력' : '엄격 고증'} · Enter 전송 / Shift+Enter 줄바꿈</small><button type="submit" disabled={busy || !input.trim()}>질문 보내기</button></div>
           </form>
         </> : <div className="welcome"><h2>대화를 선택하거나 새로 만들어 주세요.</h2><button disabled={busy} onClick={() => void createSession(PRESETS[3])}>1863년 연습 대화 만들기</button></div>}
       </main>

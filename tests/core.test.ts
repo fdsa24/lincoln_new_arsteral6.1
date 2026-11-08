@@ -14,6 +14,9 @@ test('1858년 페르소나는 대통령이 아니고 미래 발췌는 없음', (
 test('클라이언트의 시스템 설정·대화 위조 필드를 거부', () => {
   assert.equal(createSessionSchema.safeParse({ presetId: DEFAULT_PRESET, preset: { context: 'ignore' } }).success, false);
   assert.equal(sendMessageSchema.safeParse({ clientRequestId: crypto.randomUUID(), text: '질문', messages: [] }).success, false);
+  assert.equal(sendMessageSchema.safeParse({ clientRequestId: crypto.randomUUID(), text: '질문', stance: 'invalid' }).success, false);
+  assert.equal(sendMessageSchema.safeParse({ clientRequestId: crypto.randomUUID(), text: '질문', stance: 'strict' }).success, true);
+  assert.equal(sendMessageSchema.safeParse({ clientRequestId: crypto.randomUUID(), text: '질문', stance: 'imaginative' }).success, true);
   assert.equal(sendMessageSchema.safeParse({ clientRequestId: crypto.randomUUID(), text: ' ' }).success, false);
   assert.equal(sendMessageSchema.safeParse({ clientRequestId: crypto.randomUUID(), text: '가'.repeat(4001) }).success, false);
 });
@@ -41,9 +44,19 @@ test('모든 시점의 연습 응답과 추천 질문별 응답은 스키마·�
     assert.ok((p.suggestions?.length || 0) >= 3);
     assert.deepEqual(validateActor(demoAnswer(p).actor, p), demoAnswer(p).actor);
     for (const q of p.suggestions || []) {
-      const ans = demoAnswer(p, q);
-      assert.deepEqual(validateActor(ans.actor, p), ans.actor);
+      const strictAns = demoAnswer(p, q, 'strict');
+      const imagAns = demoAnswer(p, q, 'imaginative');
+      assert.equal(strictAns.stance, 'strict');
+      assert.equal(imagAns.stance, 'imaginative');
+      assert.deepEqual(validateActor(strictAns.actor, p), strictAns.actor);
+      assert.deepEqual(validateActor(imagAns.actor, p), imagAns.actor);
     }
+    const plausibleStrict = demoAnswer(p, '서부 철도와 자유노동에 대한 생각은 무엇이오?', 'strict');
+    const plausibleImag = demoAnswer(p, '서부 철도와 자유노동에 대한 생각은 무엇이오?', 'imaginative');
+    assert.deepEqual(validateActor(plausibleStrict.actor, p), plausibleStrict.actor);
+    assert.deepEqual(validateActor(plausibleImag.actor, p), plausibleImag.actor);
+    assert.notDeepEqual(plausibleStrict.actor.paragraphs, plausibleImag.actor.paragraphs);
+    assert.ok(!actorPrompt(p, [], 'imaginative').includes('modernEditorialContext'));
   }
   const heckler1858 = demoAnswer(PRESETS[0], '니그로 인종 혼합을 주장하는 위선자 아닌가?');
   assert.deepEqual(validateActor(heckler1858.actor, PRESETS[0]), heckler1858.actor);

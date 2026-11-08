@@ -119,6 +119,11 @@ const KEYWORD_MAP: Array<{ pattern: RegExp; query: string }> = [
   { pattern: /게티즈버그|추모|봉헌/u, query: 'Gettysburg Address dedication freedom' },
   { pattern: /재건|복귀|루이지애나|참정권|투표|수정헌법|13조|화해|1865/u, query: 'reconstruction Louisiana amendment suffrage amnesty' },
   { pattern: /인신보호|영장|계엄|체포/u, query: 'habeas corpus martial law arrest' },
+  { pattern: /철도|서부|토지|관세|경제|노동|농민|소농/u, query: 'free labor railroad tariff homestead agriculture' },
+  { pattern: /징병|폭동|포로|전사|유가족|피로|사면|관용/u, query: 'conscription draft pardon soldiers bereavement clemency' },
+  { pattern: /영국|프랑스|외교|유럽|면화|봉쇄/u, query: 'Great Britain France diplomacy blockade cotton' },
+  { pattern: /이주|식민|보상/u, query: 'colonization compensated emancipation' },
+  { pattern: /종교|신앙|성경|하나님|섭리/u, query: 'providence Almighty Bible prayer' },
 ];
 
 export function buildArchiveQuery(question: string): string {
