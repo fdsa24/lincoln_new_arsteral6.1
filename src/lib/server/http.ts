@@ -63,12 +63,14 @@ export function guard(request: NextRequest) {
   }
   if (getMode() === 'live') {
     const expected = getLiveConfig().classroomCode;
-    const supplied = request.headers.get('x-classroom-code') || '';
-    if (
-      supplied.length > 256 ||
-      !timingSafeEqual(createHash('sha256').update(supplied).digest(), createHash('sha256').update(expected).digest())
-    ) {
-      throw new AppError('ACCESS_DENIED', 401);
+    if (expected) {
+      const supplied = request.headers.get('x-classroom-code') || '';
+      if (
+        supplied.length > 256 ||
+        !timingSafeEqual(createHash('sha256').update(supplied).digest(), createHash('sha256').update(expected).digest())
+      ) {
+        throw new AppError('ACCESS_DENIED', 401);
+      }
     }
   }
 }

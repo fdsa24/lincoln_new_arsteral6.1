@@ -36,10 +36,11 @@ export async function generateJson(args: {
   const payload = { contents, systemInstruction: { parts: [{ text: args.system }] },
     generationConfig: { responseMimeType: 'application/json', responseJsonSchema: args.schema, maxOutputTokens: 4096 } };
   const doFetch = args.fetcher || fetch;
+  let activeModel = args.model;
   for (let attempt = 0; attempt < 2; attempt++) {
     let response: Response;
     try {
-      response = await doFetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(args.model)}:generateContent`, {
+      response = await doFetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(activeModel)}:generateContent`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': args.key },
         body: JSON.stringify(payload), signal: args.signal, cache: 'no-store',
       });
@@ -48,6 +49,11 @@ export async function generateJson(args: {
       throw new AppError(args.signal.aborted ? 'MODEL_TIMEOUT' : 'MODEL_BUSY', 503);
     }
     if (!response.ok) {
+      if (!args.fetcher && response.status === 404 && attempt === 0 && activeModel !== 'gemini-2.5-flash') {
+        await response.body?.cancel();
+        activeModel = 'gemini-2.5-flash';
+        continue;
+      }
       const retryable = [429,502,503,504].includes(response.status);
       const retryHeader = response.headers.get('retry-after');
       const seconds = retryHeader ? (/^\d+$/.test(retryHeader) ? Number(retryHeader) : Math.max(0,(Date.parse(retryHeader)-Date.now())/1000)) : 0;

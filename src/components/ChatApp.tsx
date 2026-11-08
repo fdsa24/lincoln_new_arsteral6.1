@@ -157,13 +157,21 @@ function TurnCard({
   </article>;
 }
 
-export default function ChatApp({ mode }: { mode: Mode }) {
+export default function ChatApp({
+  mode,
+  keyDetected = false,
+  requiresCode = mode === 'live',
+}: {
+  mode: Mode;
+  keyDetected?: boolean;
+  requiresCode?: boolean;
+}) {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [view, setView] = useState<SessionView | null>(null);
   const [input, setInput] = useState('');
   const [stance, setStance] = useState<Stance>('strict');
   const [codeInput, setCodeInput] = useState('');
-  const [unlocked, setUnlocked] = useState(mode === 'demo');
+  const [unlocked, setUnlocked] = useState(!requiresCode);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [exportNotice, setExportNotice] = useState('');
@@ -202,13 +210,13 @@ export default function ChatApp({ mode }: { mode: Mode }) {
     finally { finish(c); }
   }, [begin, finish]);
   useEffect(() => {
-    const timer = mode === 'demo' ? setTimeout(() => { void initialize(''); }, 0) : undefined;
+    const timer = !requiresCode ? setTimeout(() => { void initialize(''); }, 0) : undefined;
     return () => {
       if (timer !== undefined) clearTimeout(timer);
       active.current?.abort();
       active.current = null;
     };
-  }, [mode, initialize]);
+  }, [requiresCode, initialize]);
   useEffect(() => { bottom.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [view?.turns.length, busy]);
   useEffect(() => {
     if (pendingPreset && dialog.current && !dialog.current.open) { dialog.current.showModal(); cancelButton.current?.focus(); }
@@ -305,7 +313,13 @@ export default function ChatApp({ mode }: { mode: Mode }) {
     <a className="skip-link" href="#question">질문 입력으로 이동</a>
     <header className="topbar"><div><p className="brand-kicker">HISTORY / EVIDENCE / DIALOGUE</p><h1>Lincoln History Lab</h1><p>링컨의 시대를 묻고, 사료로 다시 읽기</p></div><span className={`mode-badge ${mode}`}>{mode === 'demo' ? '연습 모드 · AI 호출 없음' : '실제 AI 모드 · 이용 비용 발생 가능'}</span></header>
     <div className="intro-strip"><strong>역사 시뮬레이션, 실제 인물의 답변이 아닙니다.</strong><span>엄격 고증 · 역사적 상상력 · 원문 발췌 · 학술 아카이브 사료 · 현대 해설을 비교해 읽으세요.</span></div>
-    {mode === 'demo' && <p className="demo-warning">연습 모드는 AI 호출 없이 시점·질문 주제·재현 성향(엄격 고증 / 역사적 상상력)에 맞춘 사전 구성 예시를 보여 줍니다. 대화는 서버 메모리에 임시 보관되며 서버 재시작·만료 시 사라질 수 있습니다.</p>}
+    {mode === 'demo' && (
+      <p className="demo-warning">
+        {keyDetected
+          ? '서버에 GEMINI_API_KEY가 감지되었으나, 현재 APP_MODE=demo가 지정되어 있어 연습 모드(AI 호출 없음)로 동작 중입니다. 실제 AI 생성을 쓰려면 .env.local에서 APP_MODE=live로 바꾸고 서버를 재시작하세요.'
+          : '현재 서버 환경(.env.local)에 GEMINI_API_KEY가 설정되어 있지 않아 연습 모드(AI 호출 없음)로 실행 중입니다. 실제 자유 질문 추론을 쓰려면 .env.local에 GEMINI_API_KEY와 APP_MODE=live를 설정하세요.'}
+      </p>
+    )}
     {!unlocked && <form className="unlock" onSubmit={e => { e.preventDefault(); void initialize(codeInput.trim()); }}><h2>수업 입장 코드</h2><p>운영자가 설정한 코드를 입력하세요. Gemini API 키를 입력하는 칸이 아닙니다.</p><label htmlFor="class-code">입장 코드</label><input id="class-code" type="password" autoComplete="off" value={codeInput} maxLength={256} onChange={e => setCodeInput(e.target.value)} /><button disabled={busy || !codeInput.trim()}>입장</button></form>}
     {error && <div className="error global-error" role="alert">{error}{view && <button onClick={() => void openSession(view.session.id)}>대화 다시 불러오기</button>}{!view && unlocked && <button onClick={() => void initialize(access.current)}>연결 다시 시도</button>}</div>}
     {exportNotice && <div className="notice export-notice" role="status">{exportNotice}</div>}

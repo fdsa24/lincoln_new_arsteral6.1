@@ -218,25 +218,62 @@ function selectDemoVariant(preset: Preset, question: string | undefined, stance:
     };
   }
 
-  // 등록 사료 외 일반/가상 질문 ("역사적으로 있을 법한 프롬프트") 분기: 엄격 고증 vs 역사적 상상력의 극명한 대비!
+  // 서부 철도·자유노동·토지(홈스테드)·관세·경제 주제 분기 (시점 기준일 1862.5~7 입법 전후 고증 반영)
+  if (/철도|자유노동|서부|토지|홈스테드|관세|경제|노동|농민|소농/u.test(q)) {
+    const after1862Acts = preset.cutoffDate > '1862-07-02';
+    if (stance === 'strict') {
+      return {
+        paragraphs: [
+          after1862Acts
+            ? `현재 서버의 기본 등록 전사문(취임사·그릴리 서한·해방 선언 등)에는 서부 철도나 경제 입법에 관한 직접 원문 발췌가 포함되어 있지 않소. 다만 ${preset.cutoffDate} 시점 기준으로 1862년 5월 자영농지법과 7월 태평양 철도법이 이미 서명·제정된 것은 확인된 역사적 사실이오.`
+            : `현재 서버에 연결된 ${preset.cutoffDate} 이전 등록 전사문에는 서부 철도 부설에 관한 직접 원문이 포함되어 있지 않소. 다만 연방 영토가 노예 노동이 아닌 자유노동의 터전이 되어야 한다는 공화당의 기본 입장은 당대 토론 사료에서 확인되오.`,
+          '엄격 고증 모드에서는 연결된 원문 사료에 없는 세부 경제 구상을 임의로 부풀리지 않소. 역사적 상상력 모드로 전환하시면 당대 자유노동 철학에 기초한 상세 논변을 비교해 볼 수 있소.',
+        ],
+        quoteIds: [],
+        timeCheckNote: `${preset.label} · 엄격 고증 모드: 등록 전사문 외 주제이므로 무관한 인용 카드를 붙이지 않고 ${preset.cutoffDate} 기준 입법 사실만 절제해 안내했습니다.`,
+        customInterpretation: after1862Acts
+          ? '엄격 고증 모드는 질문과 무관한 해방 선언 인용 카드를 삽입하지 않으며, 1862년 자영농지법(5.20)·태평양 철도법(7.1) 제정 사실까지만 확인하고 사료 밖 대사 생성을 절제했습니다.'
+          : '1862년 이전 시점이므로 아직 자영농지법과 태평양 철도법이 제정되기 전이라는 시간 경계를 엄격히 지켰습니다.',
+      };
+    }
+    return {
+      paragraphs: after1862Acts
+        ? [
+            '내전이 한창인 가운데서도 내가 지난 1862년 5월 자영농지법과 7월 태평양 철도법에 서명한 까닭은, 이 전쟁이 단순히 남부의 반란을 진압하는 데 그치지 않고 자유로운 노동자가 정당한 대가를 누리는 나라의 미래를 여는 일이기 때문이오.',
+            '대륙을 가로지르는 서부 철도는 태평양 연안과 동부를 하나의 연방 공동체로 굳건히 묶어 줄 것이며, 서부의 광활한 토지는 노예 소유주의 대농장이 아니라 스스로 일하는 정착민들의 터전이 되어야 하오. 가난하게 출발한 사람도 어제는 임금을 받고 일하다가 오늘은 자기 땅을 일구고 내일은 다른 이를 고용할 수 있는 사회야말로 내가 평생 믿어 온 자유노동의 이상이오.',
+          ]
+        : [
+            '일리노이에서 젊은 시절부터 내부 개량 사업과 철도 법률 사건을 다루어 온 사람으로서, 나는 동부와 서부를 잇는 태평양 횡단 철도가 연방의 결속과 번영에 필수적이라고 오래전부터 믿어 왔소.',
+            '무엇보다 서부의 새로운 영토는 노예 노동이 아니라 자유로운 시민들이 자기 손으로 땀 흘려 일구고 그 열매를 온전히 거두는 자유노동의 땅이 되어야 하오. 노동이 천대받지 않고 누구에게나 신분 상승의 사다리가 열리는 것이 공화국이 지켜야 할 길이라 생각하오.',
+          ],
+      quoteIds: [],
+      timeCheckNote: `${preset.label} · 역사적 상상력 모드: ${after1862Acts ? '1862년 태평양 철도법·자영농지법 서명 이후 시점' : '1862년 철도법 제정 이전의 휘그·공화당 내부 개량론 시점'}에 맞추어 자유노동 철학을 재구성했습니다.`,
+      customInterpretation: after1862Acts
+        ? '1862년 5월 자영농지법(Homestead Act)과 7월 태평양 철도법(Pacific Railway Act) 제정 사실, 그리고 링컨의 핵심 사상인 자유노동 이념(Free Labor Ideology)을 결합해 개연성 있게 재구성한 대사입니다.'
+        : '1862년 입법 이전 시점이므로 미래 법안을 미리 언급하지 않고, 일리노이 시절부터 이어진 링컨의 내부 개량(철도·수운) 지지와 자유노동 사상에 입각해 개연성 있게 추론했습니다.',
+      uncertaintyNote: `역사적 개연성 추론 포함 · 서부 철도·자유노동 관련 원문 전사문은 기본 카탈로그에 미등록 상태이므로 ${preset.cutoffDate} 기준 공적 이력과 사상을 바탕으로 재구성했습니다.`,
+    };
+  }
+
+  // 등록 사료 외 일반/가상 질문 ("역사적으로 있을 법한 프롬프트") 분기: 무관한 인용 카드를 강제 부착하지 않음!
   if (stance === 'imaginative') {
     return {
       paragraphs: IMAGINATIVE_PLAUSIBLE_LINES[preset.id] || [defaultLines[preset.id]],
-      quoteIds: defaultQuote ? [defaultQuote.id] : [],
+      quoteIds: [],
       timeCheckNote: `${preset.label} · 역사적 상상력 모드: 직접 대응하는 전사문이 없는 질문에 대해 당대 링컨의 정치 철학과 시대 맥락으로 개연성 추론을 수행했습니다.`,
-      customInterpretation: '질문하신 세부 주제는 기본 등록 전사문에 직접 수록되어 있지 않으나, 역사적 상상력 모드에 따라 해당 시점의 링컨이 지녔던 자유노동 이념·헌법 수호론·시대적 배경을 토대로 개연성 있는 1인칭 답변을 구성했습니다. 실제AI(live) 모드에서는 질문 맥락에 맞춰 더욱 정교한 맞춤형 추론 대사가 실시간 생성됩니다.',
-      uncertaintyNote: `역사적 개연성 추론 포함 · 직접 대응 원문이 없는 주제이므로 ${preset.cutoffDate} 이전 링컨의 공적 철학에 비추어 재구성했습니다. ${preset.editorialWarning}`,
+      customInterpretation: '현재 연습 모드(AI 미호출) 상태이므로 시점별 개연성 추론 예시가 표시되었습니다. .env.local에서 APP_MODE=live와 GEMINI_API_KEY를 활성화하면 어떤 자유 질문을 던져도 AI가 질문 맥락에 딱 맞는 당대 추론 대사를 실시간 생성합니다.',
+      uncertaintyNote: `역사적 개연성 추론 포함 · 연습 모드 예시입니다. 자유 질문 실시간 생성은 실제 AI 모드(APP_MODE=live)에서 동작합니다.`,
     };
   }
 
   return {
     paragraphs: [
-      defaultLines[preset.id],
-      '엄격 고증 모드에서는 현재 연결된 당대 사료로 직접 입증되지 않는 세부 상황이나 가상 대화를 임의로 추론해 덧붙이지 않소. 같은 질문을 역사적 상상력 모드로 전환해 물어보시면 당대 정치 철학에 기초한 개연성 추론 답변을 비교해 볼 수 있소.',
+      `물으신 주제는 현재 ${preset.cutoffDate} 시점의 서버 기본 등록 전사문에서 직접 확인되지 않는 세부 사안이오.`,
+      '엄격 고증 모드에서는 연결된 당대 사료로 직접 입증되지 않는 내용을 임의로 추론해 덧붙이지 않소. 역사적 상상력 모드로 전환해 비교해 보거나, 실제 AI 모드(APP_MODE=live)를 켜면 미 의회도서관(loc.gov) 실시간 사료 탐색과 맞춤형 응답을 확인할 수 있소.',
     ],
-    quoteIds: defaultQuote ? [defaultQuote.id] : [],
-    timeCheckNote: `${preset.label} · 엄격 고증 모드: 연결된 사료 범위를 벗어나는 추론을 절제하고 확인 가능한 사료 경계를 안내했습니다.`,
-    customInterpretation: '엄격 고증 모드는 사료가 침묵하는 영역에서 AI가 임의로 대사를 부풀리지 않도록 제한합니다. 사료 외연의 개연성 추론을 체험하려면 질문창 상단에서 [역사적 상상력] 모드를 선택해 비교해 보세요.',
+    quoteIds: [],
+    timeCheckNote: `${preset.label} · 엄격 고증 모드: 질문 주제와 무관한 인용 카드를 배제하고 사료 확인 가능 경계를 안내했습니다.`,
+    customInterpretation: '엄격 고증 모드는 사료가 침묵하는 영역에서 무관한 대사나 인용을 억지로 붙이지 않습니다. 질문창 상단에서 [역사적 상상력] 모드를 선택하거나 실제 AI 모드(live)로 전환해 비교해 보세요.',
   };
 }
 
@@ -244,6 +281,7 @@ export function demoAnswer(preset: Preset, question?: string, stance: Stance = '
   const available = eligibleSources(preset);
   const latest = available.at(-1);
   const variant = selectDemoVariant(preset, question, stance);
+  const useLatestPrimary = (!question || variant.quoteIds.length > 0) && Boolean(latest);
   const allCutoffArchives = filterArchiveSourcesByCutoff(CURATED_ARCHIVE_POOL, preset);
   const archiveEligible = question
     ? (variant.preferredArchiveIds?.length
@@ -253,20 +291,20 @@ export function demoAnswer(preset: Preset, question?: string, stance: Stance = '
   const actor: ActorOutput = {
     paragraphs: variant.paragraphs,
     quoteIds: variant.quoteIds,
-    sourceIds: latest ? [latest.id] : [],
+    sourceIds: useLatestPrimary && latest ? [latest.id] : [],
     uncertainty: variant.uncertaintyNote || preset.editorialWarning,
   };
   const historianSourceIds = [
-    ...(latest ? [latest.id] : []),
+    ...(useLatestPrimary && latest ? [latest.id] : []),
     ...archiveEligible.map(s => s.id),
   ];
   const factsParts: string[] = [];
-  if (latest) factsParts.push(`서버 등록 전사문: ${latest.title} (${latest.documentDate}). ${latest.context}`);
+  if (useLatestPrimary && latest) factsParts.push(`서버 등록 전사문: ${latest.title} (${latest.documentDate}). ${latest.context}`);
   if (archiveEligible.length > 0) {
     factsParts.push(`학술 아카이브 사료 근거: ${archiveEligible.map(s => `${s.title} (${s.documentDate}) — ${s.context}`).join(' ')}`);
   }
   if (factsParts.length === 0) {
-    factsParts.push('이 시점에 이용할 수 있는 기본 등록 전사문이 없습니다.');
+    factsParts.push('이 질문 주제에 직접 대응하는 기본 등록 전사문은 없습니다.');
   }
 
   return assemble('demo', preset, actor, {
